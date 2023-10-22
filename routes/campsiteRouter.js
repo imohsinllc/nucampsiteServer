@@ -16,8 +16,6 @@ campsiteRouter
       .catch((err) => next(err));
   })
   .post(bodyParser.json(), (req, res, next) => {
-    console.log("Campsite body: ", req.body);
-
     Campsite.create(req.body)
       .then((campsite) => {
         console.log("Campsite Created ", campsite);
