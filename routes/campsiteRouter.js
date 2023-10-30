@@ -2,6 +2,7 @@ const express = require("express");
 const Campsite = require("../models/campsite");
 const bodyParser = require("body-parser");
 const authenticate = require("../authenticate");
+const { authorize } = require("passport");
 
 const campsiteRouter = express.Router();
 
@@ -183,7 +184,7 @@ campsiteRouter
 
 campsiteRouter
   .route("/:campsiteId/comments/:commentId")
-  .get((req, res, next) => {
+  .get(authenticate.verifyUser, (req, res, next) => {
     Campsite.findById(req.params.campsiteId)
       .populate("comments.author")
       .then((campsite) => {
@@ -217,21 +218,38 @@ campsiteRouter
       Campsite.findById(req.params.campsiteId)
         .then((campsite) => {
           if (campsite && campsite.comments.id(req.params.commentId)) {
-            if (req.body.rating) {
-              campsite.comments.id(req.params.commentId).rating =
-                req.body.rating;
+            // console.log(
+            //   "comment user id: ",
+            //   campsite.comments.id(req.params.commentId).author
+            // );
+            // console.log("login user id: ", req.user._id);
+            if (
+              req.user._id.equals(
+                campsite.comments.id(req.params.commentId).author
+              )
+            ) {
+              if (req.body.rating) {
+                campsite.comments.id(req.params.commentId).rating =
+                  req.body.rating;
+              }
+              if (req.body.text) {
+                campsite.comments.id(req.params.commentId).text = req.body.text;
+              }
+              campsite
+                .save()
+                .then((campsite) => {
+                  res.statusCode = 200;
+                  res.setHeader("Content-Type", "application/json");
+                  res.json(campsite);
+                })
+                .catch((err) => next(err));
+            } else {
+              err = new Error(
+                `You are not authorized to perform this operation!`
+              );
+              err.status = 403;
+              return next(err);
             }
-            if (req.body.text) {
-              campsite.comments.id(req.params.commentId).text = req.body.text;
-            }
-            campsite
-              .save()
-              .then((campsite) => {
-                res.statusCode = 200;
-                res.setHeader("Content-Type", "application/json");
-                res.json(campsite);
-              })
-              .catch((err) => next(err));
           } else if (!campsite) {
             err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
@@ -252,15 +270,27 @@ campsiteRouter
       Campsite.findById(req.params.campsiteId)
         .then((campsite) => {
           if (campsite && campsite.comments.id(req.params.commentId)) {
-            campsite.comments.id(req.params.commentId).remove();
-            campsite
-              .save()
-              .then((campsite) => {
-                res.statusCode = 200;
-                res.setHeader("Content-Type", "application/json");
-                res.json(campsite);
-              })
-              .catch((err) => next(err));
+            if (
+              req.user._id.equals(
+                campsite.comments.id(req.params.commentId).author
+              )
+            ) {
+              campsite.comments.id(req.params.commentId).remove();
+              campsite
+                .save()
+                .then((campsite) => {
+                  res.statusCode = 200;
+                  res.setHeader("Content-Type", "application/json");
+                  res.json(campsite);
+                })
+                .catch((err) => next(err));
+            } else {
+              err = new Error(
+                `You are not authorized to perform this operation!`
+              );
+              err.status = 403;
+              return next(err);
+            }
           } else if (!campsite) {
             err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
