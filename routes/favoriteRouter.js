@@ -129,19 +129,42 @@ favoriteRouter
     authenticate.verifyAdmin,
     bodyParser.json(),
     (req, res, next) => {
-      Campsite.findByIdAndUpdate(
-        req.params.campsiteId,
-        {
-          $set: req.body,
-        },
-        { new: true }
-      )
-        .then((campsite) => {
-          res.statusCode = 200;
-          res.setHeader("Content-Type", "application/json");
-          res.json(campsite);
-        })
-        .catch((err) => next(err));
+      Favorite.findOne(
+        { user: req.user._id },
+        function (err, favoriteDocument) {
+          if (err) {
+            console.log(err);
+          }
+          if (!favoriteDocument) {
+            //create a new one
+            const campsites = [{ _id: req.params.campsiteId }];
+            const user = req.user._id;
+            const favorites = { user, campsites };
+
+            Favorite.create(favorites)
+              .then((favorite) => {
+                console.log("Favorite Created ", favorite);
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "application/json");
+                res.json(favorite);
+              })
+              .catch((err) => next(err));
+          } else {
+            //if doesn't already exist then add to the back (push)
+            if (!favoriteDocument.campsites.includes(req.params.campsiteId)) {
+              favoriteDocument.campsites.push({ _id: req.params.campsiteId });
+            }
+            favoriteDocument
+              .save()
+              .then((favorite) => {
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "application/json");
+                res.json(favoriteDocument);
+              })
+              .catch((err) => next(err));
+          }
+        }
+      );
     }
   )
   .delete(
@@ -149,13 +172,33 @@ favoriteRouter
     authenticate.verifyUser,
     authenticate.verifyAdmin,
     (req, res, next) => {
-      Campsite.findByIdAndDelete(req.params.campsiteId)
-        .then((response) => {
-          res.statusCode = 200;
-          res.setHeader("Content-Type", "application/json");
-          res.json(response);
-        })
-        .catch((err) => next(err));
+      Favorite.findOne(
+        { user: req.user._id },
+        function (err, favoriteDocument) {
+          if (err) {
+            console.log(err);
+          }
+          if (!favoriteDocument) {
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "text/plain");
+            res.end("there are no favorites to delete");
+          } else {
+            //if exists then remove
+            favoriteDocument.campsites.splice(
+              favoriteDocument.campsites.indexOf(req.params.campsiteId),
+              1
+            );
+            favoriteDocument
+              .save()
+              .then((favorite) => {
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "application/json");
+                res.json(favoriteDocument);
+              })
+              .catch((err) => next(err));
+          }
+        }
+      );
     }
   );
 
