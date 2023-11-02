@@ -9,13 +9,13 @@ favoriteRouter
   .route("/")
   .options(cors.corsWithOptions, (req, res) => res.sendStatus(200))
   .get(cors.cors, authenticate.verifyUser, (req, res, next) => {
-    Favorite.find({ user: req.user._id })
+    Favorite.findOne({ user: req.user._id })
       .populate("user")
       .populate("campsites")
-      .then((favorites) => {
+      .then((favorite) => {
         res.statusCode = 200;
         res.setHeader("Content-Type", "application/json");
-        res.json(favorites);
+        res.json(favorite);
       })
       .catch((err) => next(err));
   })
@@ -33,12 +33,9 @@ favoriteRouter
           }
           if (!favoriteDocument) {
             //create a new one
-            console.log("no document exists so add one");
             const campsites = req.body;
             const user = req.user._id;
             const favorites = { user, campsites };
-
-            console.log("req.body now: ", favorites);
 
             Favorite.create(favorites)
               .then((favorite) => {
@@ -50,10 +47,28 @@ favoriteRouter
               .catch((err) => next(err));
           } else {
             //find ones that don't already exist and add to the back (push)
-            favoriteDocument.campsite.forEach((campsite) => {
-              console.log("campsite: ", campsite);
-              console.log("request body array: ", request.body);
+            console.log("existing favorites: ", favoriteDocument);
+            const newFavorites = req.body;
+            newFavorites.forEach((newCampsite) => {
+              console.log("new campsite: ", newCampsite._id);
+              console.log(
+                "favoriteDocument.campsites: ",
+                favoriteDocument.campsites
+              );
+
+              if (!favoriteDocument.campsites.includes(newCampsite._id)) {
+                //push to favoriteDocument
+                favoriteDocument.campsites.push(newCampsite);
+              }
             });
+            favoriteDocument
+              .save()
+              .then((favorite) => {
+                res.statusCode = 200;
+                res.setHeader("Content-Type", "application/json");
+                res.json(favorite);
+              })
+              .catch((err) => next(err));
           }
         }
       ); //findOne
@@ -73,7 +88,7 @@ favoriteRouter
     authenticate.verifyUser,
     authenticate.verifyAdmin,
     (req, res, next) => {
-      Campsite.deleteMany()
+      Favorite.findOneAndDelete({ user: req.user._id })
         .then((response) => {
           res.statusCode = 200;
           res.setHeader("Content-Type", "application/json");
